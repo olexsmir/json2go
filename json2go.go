@@ -49,7 +49,7 @@ func (t *Transformer) getTypeAnnotation(typeName string, input any) string {
 
 	case []any:
 		if len(v) == 0 {
-			return fmt.Sprintf("type %s []any", t.structName)
+			return fmt.Sprintf("type %s []any", typeName)
 		}
 
 		type_ := t.getGoType(typeName+"Item", v[0])
@@ -78,7 +78,8 @@ func (t *Transformer) buildStruct(input map[string]any) string {
 	for _, f := range mapToStructInput(input) {
 		fieldName := t.toGoFieldName(f.field)
 		if fieldName == "" {
-			fieldName = "Field"
+			fieldName = "NotNamedField"
+			f.field = "NotNamedField"
 		}
 
 		fieldType := t.getGoType(fieldName, f.type_)
