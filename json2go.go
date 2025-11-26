@@ -4,18 +4,15 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"sort"
 	"strings"
 )
 
 var ErrInvalidJSON = errors.New("invalid json")
 
-type (
-	types       struct{ name, def string }
-	Transformer struct {
-		structName string
-		types      []types
-	}
-)
+type Transformer struct {
+	structName string
+}
 
 func NewTransformer() *Transformer {
 	return &Transformer{}
@@ -27,34 +24,20 @@ func NewTransformer() *Transformer {
 // todo: validate provided structName
 func (t *Transformer) Transform(structName, jsonStr string) (string, error) {
 	t.structName = structName
-	t.types = make([]types, 1)
 
 	var input any
 	if err := json.Unmarshal([]byte(jsonStr), &input); err != nil {
 		return "", errors.Join(ErrInvalidJSON, err)
 	}
 
-	var result strings.Builder
-
-	// the "parent" type
-	type_ := t.generateTypeAnnotation(structName, input)
-	result.WriteString(type_)
-
-	// nested types
-	for _, t := range t.types {
-		if t.name != structName {
-			result.WriteString(t.def)
-			result.WriteString("\n")
-		}
-	}
-
-	return result.String(), nil
+	type_ := t.getTypeAnnotation(structName, input)
+	return type_, nil
 }
 
-func (t *Transformer) generateTypeAnnotation(typeName string, input any) string {
+func (t *Transformer) getTypeAnnotation(typeName string, input any) string {
 	switch v := input.(type) {
 	case map[string]any:
-		return t.buildStruct(typeName, v)
+		return fmt.Sprintf("type %s %s", typeName, t.buildStruct(v))
 
 	case []any:
 		if len(v) == 0 {
@@ -76,9 +59,6 @@ func (t *Transformer) generateTypeAnnotation(typeName string, input any) string 
 	case bool:
 		return fmt.Sprintf("type %s bool", typeName)
 
-	case nil:
-		return fmt.Sprintf("type %s any", typeName)
-
 	default:
 		return fmt.Sprintf("type %s any", typeName)
 
@@ -86,18 +66,18 @@ func (t *Transformer) generateTypeAnnotation(typeName string, input any) string 
 }
 
 // todo: input shouldn't be map, to preserve it's order
-func (t *Transformer) buildStruct(typeName string, input map[string]any) string {
+func (t *Transformer) buildStruct(input map[string]any) string {
 	var fields strings.Builder
-	for key, value := range input {
-		fieldName := t.toGoFieldName(key)
+	for _, f := range mapToStructInput(input) {
+		fieldName := t.toGoFieldName(f.field)
 		if fieldName == "" {
 			fieldName = "Field"
 		}
 
-		fieldType := t.getGoType(fieldName, value)
+		fieldType := t.getGoType(fieldName, f.type_)
 
 		// todo: toggle json tags generation
-		jsonTag := fmt.Sprintf("`json:\"%s\"`", key)
+		jsonTag := fmt.Sprintf("`json:\"%s\"`", f.field)
 
 		// todo: figure out the indentation, since it might have nested struct
 		fields.WriteString(fmt.Sprintf(
@@ -108,30 +88,20 @@ func (t *Transformer) buildStruct(typeName string, input map[string]any) string 
 		))
 	}
 
-	structDef := fmt.Sprintf("type %s struct {\n%s}", typeName, fields.String())
-	t.types = append(t.types, types{
-		name: typeName,
-		def:  structDef,
-	})
-
-	return structDef
+	return fmt.Sprintf("struct {\n%s}", fields.String())
 }
 
 func (t *Transformer) getGoType(fieldName string, value any) string {
 	switch v := value.(type) {
 	case map[string]any:
-		typeName := t.toGoTypeName(fieldName)
-		if !t.isTypeRecorded(typeName) {
-			t.generateTypeAnnotation(typeName, v)
-		}
-		return typeName
+		return t.buildStruct(v)
 
 	case []any:
 		if len(v) == 0 {
 			return "[]any"
 		}
 
-		type_ := t.getGoType(fieldName+"Item", v[0]) // TODO
+		type_ := t.getGoType(fieldName, v[0])
 		return "[]" + type_
 
 	case float64:
@@ -146,20 +116,9 @@ func (t *Transformer) getGoType(fieldName string, value any) string {
 	case bool:
 		return "bool"
 
-	case nil:
-		return "any"
-
 	default:
 		return "any"
 	}
-}
-
-func (t *Transformer) toGoTypeName(fieldName string) string {
-	goName := t.toGoFieldName(fieldName)
-	if len(goName) > 0 {
-		return strings.ToUpper(goName[:1]) + goName[1:]
-	}
-	return "Type"
 }
 
 func (t *Transformer) toGoFieldName(jsonField string) string {
@@ -177,11 +136,20 @@ func (t *Transformer) toGoFieldName(jsonField string) string {
 	return result.String()
 }
 
-func (t *Transformer) isTypeRecorded(name string) bool {
-	for _, t := range t.types {
-		if t.name == name {
-			return true
-		}
+type structInput struct {
+	field string
+	type_ any
+}
+
+func mapToStructInput(input map[string]any) []structInput {
+	res := make([]structInput, 0, len(input))
+	for k, v := range input {
+		res = append(res, structInput{k, v})
 	}
-	return false
+
+	sort.Slice(res, func(i, j int) bool {
+		return res[i].field < res[j].field
+	})
+
+	return res
 }

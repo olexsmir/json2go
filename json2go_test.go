@@ -3,11 +3,16 @@ package json2go
 import (
 	"errors"
 	"fmt"
+	"reflect"
 	"strings"
 	"testing"
 )
 
 func field(name, type_ string, json_ ...string) string {
+	if strings.Contains(type_, "struct") {
+		return fmt.Sprintf("\n%s %s", name, type_)
+	}
+
 	tag := strings.ToLower(name)
 	if len(json_) == 1 {
 		tag = json_[0]
@@ -24,10 +29,10 @@ func TestTransformer_Transform(t *testing.T) {
 		"simple object": {
 			input: `{"name": "Olex", "active": true, "age": 420}`,
 			output: "type Out struct {" +
-				field("Name", "string") +
 				field("Active", "bool") +
 				field("Age", "int") +
-				"\n}\n",
+				field("Name", "string") +
+				"\n}",
 		},
 		"invalid json": {
 			err:   ErrInvalidJSON,
@@ -38,48 +43,50 @@ func TestTransformer_Transform(t *testing.T) {
 			output: "type Out struct {" +
 				field("FirstName", "string", "first_name") +
 				field("LastName", "string", "last_name") +
-				"\n}\n",
+				"\n}",
 		},
 		"nested object and array": {
 			input: `{"user": {"name": "Alice", "score": 95.5}, "tags": ["go", "json"]}`,
 			output: "type Out struct {" +
-				field("User", "User") +
 				field("Tags", "[]string") +
-				"\n}\ntype User struct {" +
+				field("User", "struct {") +
 				field("Name", "string") +
 				field("Score", "float64") +
-				"\n}\n",
+				"\n} `json:\"user\"`" +
+				"\n}",
 		},
 		"empty nested object": {
 			input: `{"user": {}}`,
 			output: "type Out struct {" +
-				field("User", "User") +
-				"\n}\ntype User struct {\n}\n",
+				field("User", "struct {") +
+				"\n} `json:\"user\"`" +
+				"\n}",
 		},
 		"array of object": {
 			input: `[{"name": "John"}, {"name": "Jane"}]`,
-			output: "type Out []OutItem" +
-				"\ntype OutItem struct {" +
+			output: "type Out []struct {" +
 				field("Name", "string") +
-				"\n}\n",
+				"\n}",
 		},
 		"empty array": {
 			input: `{"items": []}`,
-			output: `type Out struct {` +
-				field("Items", "[]any") + "\n}\n",
+			output: "type Out struct {" +
+				field("Items", "[]any") +
+				"\n}",
 		},
 		"null": {
 			input: `{"item": null}`,
 			output: `type Out struct {` +
-				field("Item", "any") + "\n}\n",
+				field("Item", "any") +
+				"\n}",
 		},
 		"numbers": {
 			input: `{"pos": 123, "neg": -321, "float": 420.69}`,
 			output: "type Out struct {" +
-				field("Pos", "int") +
-				field("Neg", "int") +
 				field("Float", "float64") +
-				"\n}\n",
+				field("Neg", "int") +
+				field("Pos", "int") +
+				"\n}",
 		},
 	}
 
@@ -88,20 +95,7 @@ func TestTransformer_Transform(t *testing.T) {
 		t.Run(tname, func(t *testing.T) {
 			result, err := trans.Transform("Out", tt.input)
 			assertEqualErr(t, tt.err, err)
-
-			lines := strings.Split(result, "\n")
-			counts := make(map[string]int)
-			for _, line := range lines {
-				if !strings.Contains(line, "}") {
-					counts[line]++
-				}
-			}
-
-			for _, line := range lines {
-				if counts[line] > 1 {
-					t.Fatalf("found duplicate line: %s", line)
-				}
-			}
+			assertEqual(t, tt.output, result)
 		})
 	}
 }
@@ -109,6 +103,13 @@ func TestTransformer_Transform(t *testing.T) {
 func assertEqualErr(t *testing.T, expected, actual error) {
 	t.Helper()
 	if (expected != nil || actual != nil) && errors.Is(expected, actual) {
+		t.Errorf("expected: %v, got: %v\n", expected, actual)
+	}
+}
+
+func assertEqual[T any](t *testing.T, expected, actual T) {
+	t.Helper()
+	if !reflect.DeepEqual(expected, actual) {
 		t.Errorf("expected: %v, got: %v\n", expected, actual)
 	}
 }
