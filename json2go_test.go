@@ -22,9 +22,10 @@ func field(name, type_ string, json_ ...string) string {
 
 func TestTransformer_Transform(t *testing.T) {
 	tests := map[string]struct {
-		input  string
-		output string
-		err    error
+		input      string
+		output     string
+		structName string
+		err        error
 	}{
 		"simple object": {
 			input: `{"name": "Olex", "active": true, "age": 420}`,
@@ -37,6 +38,18 @@ func TestTransformer_Transform(t *testing.T) {
 		"invalid json": {
 			err:   ErrInvalidJSON,
 			input: `{"invalid":json}`,
+		},
+		"invalid struct name, starts with number": {
+			err:        ErrInvalidStructName,
+			structName: "1Name",
+		},
+		"invalid struct name, has space": {
+			err:        ErrInvalidStructName,
+			structName: "Name Name2",
+		},
+		"invalid struct name, has non letter/number": {
+			err:        ErrInvalidStructName,
+			structName: "Name$",
 		},
 		"snake_case to CamelCase": {
 			input: `{"first_name": "Bob", "last_name": "Bobberson"}`,
@@ -93,7 +106,12 @@ func TestTransformer_Transform(t *testing.T) {
 	trans := NewTransformer()
 	for tname, tt := range tests {
 		t.Run(tname, func(t *testing.T) {
-			result, err := trans.Transform("Out", tt.input)
+			sn := "Out"
+			if tt.structName != "" {
+				sn = tt.structName
+			}
+
+			result, err := trans.Transform(sn, tt.input)
 			assertEqualErr(t, tt.err, err)
 			assertEqual(t, tt.output, result)
 		})
@@ -102,8 +120,17 @@ func TestTransformer_Transform(t *testing.T) {
 
 func assertEqualErr(t *testing.T, expected, actual error) {
 	t.Helper()
-	if (expected != nil || actual != nil) && errors.Is(expected, actual) {
-		t.Errorf("expected: %v, got: %v\n", expected, actual)
+	if expected == nil && actual == nil {
+		return
+	}
+
+	if expected == nil || actual == nil {
+		t.Errorf("expected: %v, got: %v", expected, actual)
+		return
+	}
+
+	if !errors.Is(actual, expected) {
+		t.Errorf("expected error: %v, got: %v", expected, actual)
 	}
 }
 

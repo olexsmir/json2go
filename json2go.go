@@ -4,11 +4,16 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"regexp"
 	"sort"
 	"strings"
 )
 
-var ErrInvalidJSON = errors.New("invalid json")
+var identRe = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*$`)
+var (
+	ErrInvalidJSON       = errors.New("invalid json")
+	ErrInvalidStructName = errors.New("invalid struct name")
+)
 
 type Transformer struct {
 	structName string
@@ -21,8 +26,11 @@ func NewTransformer() *Transformer {
 // Transform ...
 // todo: take io.Reader as input?
 // todo: output as io.Writer?
-// todo: validate provided structName
 func (t *Transformer) Transform(structName, jsonStr string) (string, error) {
+	if !identRe.MatchString(structName) {
+		return "", ErrInvalidStructName
+	}
+
 	t.structName = structName
 
 	var input any
@@ -65,7 +73,6 @@ func (t *Transformer) getTypeAnnotation(typeName string, input any) string {
 	}
 }
 
-// todo: input shouldn't be map, to preserve it's order
 func (t *Transformer) buildStruct(input map[string]any) string {
 	var fields strings.Builder
 	for _, f := range mapToStructInput(input) {
