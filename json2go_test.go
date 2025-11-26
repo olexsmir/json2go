@@ -8,16 +8,17 @@ import (
 	"testing"
 )
 
-func field(name, type_ string, json_ ...string) string {
+func field(indentLvl int, name, type_ string, json_ ...string) string {
+	indent := strings.Repeat("\t", indentLvl)
 	if strings.Contains(type_, "struct") {
-		return fmt.Sprintf("\n%s %s", name, type_)
+		return fmt.Sprintf("\n%s%s %s", indent, name, type_)
 	}
 
 	tag := strings.ToLower(name)
 	if len(json_) == 1 {
 		tag = json_[0]
 	}
-	return fmt.Sprintf("\n%s %s `json:\"%s\"`", name, type_, tag)
+	return fmt.Sprintf("\n%s%s %s `json:\"%s\"`", indent, name, type_, tag)
 }
 
 func TestTransformer_Transform(t *testing.T) {
@@ -30,9 +31,9 @@ func TestTransformer_Transform(t *testing.T) {
 		"simple object": {
 			input: `{"name": "Olex", "active": true, "age": 420}`,
 			output: "type Out struct {" +
-				field("Active", "bool") +
-				field("Age", "int") +
-				field("Name", "string") +
+				field(1, "Active", "bool") +
+				field(1, "Age", "int") +
+				field(1, "Name", "string") +
 				"\n}",
 		},
 		"invalid json": {
@@ -54,51 +55,51 @@ func TestTransformer_Transform(t *testing.T) {
 		"snake_case to CamelCase": {
 			input: `{"first_name": "Bob", "last_name": "Bobberson"}`,
 			output: "type Out struct {" +
-				field("FirstName", "string", "first_name") +
-				field("LastName", "string", "last_name") +
+				field(1, "FirstName", "string", "first_name") +
+				field(1, "LastName", "string", "last_name") +
 				"\n}",
 		},
 		"nested object and array": {
 			input: `{"user": {"name": "Alice", "score": 95.5}, "tags": ["go", "json"]}`,
 			output: "type Out struct {" +
-				field("Tags", "[]string") +
-				field("User", "struct {") +
-				field("Name", "string") +
-				field("Score", "float64") +
-				"\n} `json:\"user\"`" +
+				field(1, "Tags", "[]string") +
+				field(1, "User", "struct {") +
+				field(2, "Name", "string") +
+				field(2, "Score", "float64") +
+				"\n\t} `json:\"user\"`" +
 				"\n}",
 		},
 		"empty nested object": {
 			input: `{"user": {}}`,
 			output: "type Out struct {" +
-				field("User", "struct {") +
-				"\n} `json:\"user\"`" +
+				field(1, "User", "struct {") +
+				"\n\t} `json:\"user\"`" +
 				"\n}",
 		},
 		"array of object": {
 			input: `[{"name": "John"}, {"name": "Jane"}]`,
 			output: "type Out []struct {" +
-				field("Name", "string") +
+				field(1, "Name", "string") +
 				"\n}",
 		},
 		"empty array": {
 			input: `{"items": []}`,
 			output: "type Out struct {" +
-				field("Items", "[]any") +
+				field(1, "Items", "[]any") +
 				"\n}",
 		},
 		"null": {
 			input: `{"item": null}`,
 			output: `type Out struct {` +
-				field("Item", "any") +
+				field(1, "Item", "any") +
 				"\n}",
 		},
 		"numbers": {
 			input: `{"pos": 123, "neg": -321, "float": 420.69}`,
 			output: "type Out struct {" +
-				field("Float", "float64") +
-				field("Neg", "int") +
-				field("Pos", "int") +
+				field(1, "Float", "float64") +
+				field(1, "Neg", "int") +
+				field(1, "Pos", "int") +
 				"\n}",
 		},
 	}

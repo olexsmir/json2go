@@ -14,8 +14,9 @@ func TestTransformer_GetGoType(t *testing.T) {
 				"age":      float64(20),
 			},
 			output: "struct {" +
-				field("Age", "int") +
-				field("Username", "string") + "\n}",
+				field(1, "Age", "int") +
+				field(1, "Username", "string") +
+				"\n}",
 		},
 		"empty slice": {
 			value:  make([]any, 0),
@@ -82,13 +83,13 @@ func TestTransformer_buildStruct(t *testing.T) {
 				"active": true,
 			},
 			output: "struct {" +
-				field("Active", "bool", "active") +
+				field(1, "Active", "bool", "active") +
 				"\n}",
 		},
 		"with no named field": {
 			input: map[string]any{"": "user"},
 			output: "struct {" +
-				field("NotNamedField", "string", "NotNamedField") +
+				field(1, "NotNamedField", "string", "NotNamedField") +
 				"\n}",
 		},
 	}
@@ -113,7 +114,7 @@ func TestTransformer_getTypeAnnotation(t *testing.T) {
 		"struct": {
 			input: map[string]any{"field": false},
 			output: c + "struct {" +
-				field("Field", "bool") + "\n}",
+				field(1, "Field", "bool") + "\n}",
 		},
 		"slice": {
 			input:  []any{"asdf", "jkl;"},

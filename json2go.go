@@ -16,7 +16,8 @@ var (
 )
 
 type Transformer struct {
-	structName string
+	structName    string
+	currentIndent int
 }
 
 func NewTransformer() *Transformer {
@@ -32,6 +33,7 @@ func (t *Transformer) Transform(structName, jsonStr string) (string, error) {
 	}
 
 	t.structName = structName
+	t.currentIndent = 0
 
 	var input any
 	if err := json.Unmarshal([]byte(jsonStr), &input); err != nil {
@@ -82,21 +84,27 @@ func (t *Transformer) buildStruct(input map[string]any) string {
 			f.field = "NotNamedField"
 		}
 
+		// increase indentation in case of building new struct
+		t.currentIndent++
 		fieldType := t.getGoType(fieldName, f.type_)
+		t.currentIndent--
 
 		// todo: toggle json tags generation
 		jsonTag := fmt.Sprintf("`json:\"%s\"`", f.field)
 
-		// todo: figure out the indentation, since it might have nested struct
+		indent := strings.Repeat("\t", t.currentIndent+1)
 		fields.WriteString(fmt.Sprintf(
-			"%s %s %s\n",
+			"%s%s %s %s\n",
+			indent,
 			fieldName,
 			fieldType,
 			jsonTag,
 		))
 	}
 
-	return fmt.Sprintf("struct {\n%s}", fields.String())
+	return fmt.Sprintf("struct {\n%s%s}",
+		fields.String(),
+		strings.Repeat("\t", t.currentIndent))
 }
 
 func (t *Transformer) getGoType(fieldName string, value any) string {
