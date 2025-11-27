@@ -24,9 +24,7 @@ func NewTransformer() *Transformer {
 	return &Transformer{}
 }
 
-// Transform ...
-// todo: take io.Reader as input?
-// todo: output as io.Writer?
+// Transform transforms provided json string into go type annotation
 func (t *Transformer) Transform(structName, jsonStr string) (string, error) {
 	if !identRe.MatchString(structName) {
 		return "", ErrInvalidStructName
@@ -89,7 +87,6 @@ func (t *Transformer) buildStruct(input map[string]any) string {
 		fieldType := t.getGoType(fieldName, f.type_)
 		t.currentIndent--
 
-		// todo: toggle json tags generation
 		jsonTag := fmt.Sprintf("`json:\"%s\"`", f.field)
 
 		indent := strings.Repeat("\t", t.currentIndent+1)
