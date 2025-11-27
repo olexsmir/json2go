@@ -24,7 +24,8 @@ func main() {
 
 	stat, err := os.Stdin.Stat()
 	if err != nil {
-		panic(err)
+		fmt.Printf("Failed to get stdin stat: %v\n", err)
+		os.Exit(1)
 	}
 
 	isPiped := (stat.Mode() & os.ModeCharDevice) == 0
@@ -36,7 +37,8 @@ func main() {
 	case isPiped:
 		data, rerr := io.ReadAll(os.Stdin)
 		if rerr != nil {
-			panic(rerr)
+			fmt.Printf("Failed to read piped input: %v\n", rerr)
+			os.Exit(1)
 		}
 		input = string(data)
 	default:
@@ -47,7 +49,8 @@ func main() {
 	transformer := json2go.NewTransformer()
 	type_, err := transformer.Transform(*typeName, input)
 	if err != nil {
-		panic(err)
+		fmt.Printf("Failed to transform json to type annotation: %v\n", err)
+		os.Exit(1)
 	}
 
 	fmt.Println(type_)
