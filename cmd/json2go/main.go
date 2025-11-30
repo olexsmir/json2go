@@ -24,7 +24,7 @@ func main() {
 
 	stat, err := os.Stdin.Stat()
 	if err != nil {
-		fmt.Printf("Failed to get stdin stat: %v\n", err)
+		fmt.Fprintf(os.Stderr, "Failed to get stdin stat: %v\n", err)
 		os.Exit(1)
 	}
 
@@ -37,7 +37,7 @@ func main() {
 	case isPiped:
 		data, rerr := io.ReadAll(os.Stdin)
 		if rerr != nil {
-			fmt.Printf("Failed to read piped input: %v\n", rerr)
+			fmt.Fprintf(os.Stderr, "Failed to read piped input: %v\n", rerr)
 			os.Exit(1)
 		}
 		input = string(data)
@@ -49,7 +49,7 @@ func main() {
 	transformer := json2go.NewTransformer()
 	type_, err := transformer.Transform(*typeName, input)
 	if err != nil {
-		fmt.Printf("Failed to transform json to type annotation: %v\n", err)
+		fmt.Fprintf(os.Stderr, "Failed to transform json to type annotation: %v\n", err)
 		os.Exit(1)
 	}
 
