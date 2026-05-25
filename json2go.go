@@ -2,12 +2,12 @@ package json2go
 
 import (
 	"errors"
-	"regexp"
+	"unicode"
+	"unicode/utf8"
+	"unsafe"
 )
 
 var (
-	identRe = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*$`) // TODO: support unicode
-
 	// ErrInvalidJSON json input could not be parsed.
 	ErrInvalidJSON = errors.New("invalid json")
 
@@ -17,11 +17,11 @@ var (
 
 // Transform converts a JSON string to Go struct type definitions.
 //
-// The structName must be a valid Go identifier (matching ^[A-Za-z_][A-Za-z0-9_]*$).
+// The structName must be a valid Go identifier.
 // Set includeTags to true to generate `json:"field_name"` tags on struct fields.
 // Returns the Go code as a string, or an error if JSON parsing fails.
 func Transform(structName, jsonStr string, includeTags bool) (string, error) {
-	if !identRe.MatchString(structName) {
+	if !isValidIdentifier(structName) {
 		return "", ErrInvalidStructName
 	}
 
@@ -34,4 +34,23 @@ func Transform(structName, jsonStr string, includeTags bool) (string, error) {
 	}
 
 	return NewTranspiler().Transpile(structName, v, includeTags)
+}
+
+func isValidIdentifier(s string) bool {
+	if len(s) == 0 {
+		return false
+	}
+
+	r, size := utf8.DecodeRuneInString(s)
+	if !unicode.IsLetter(r) && r != '_' {
+		return false
+	}
+
+	for _, r := range s[size:] {
+		if !unicode.IsLetter(r) && !unicode.IsDigit(r) && r != '_' {
+			return false
+		}
+	}
+
+	return true
 }
