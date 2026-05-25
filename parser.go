@@ -48,7 +48,12 @@ func (p *Parser) parseValue() (Value, error) {
 	case NUMBER:
 		n, err := strconv.ParseInt(p.cur.Literal, 10, 64)
 		if err != nil {
-			return Value{}, fmt.Errorf("invalid number: %w", err)
+			f, ferr := strconv.ParseFloat(p.cur.Literal, 64)
+			if ferr != nil {
+				return Value{}, fmt.Errorf("invalid number: %w", err)
+			}
+			p.advance()
+			return Value{Kind: DecimalValue, Float: f}, nil
 		}
 		p.advance()
 		return Value{Kind: NumberValue, Int: n}, nil

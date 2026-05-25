@@ -1,6 +1,7 @@
 package json2go
 
 import (
+	"encoding/json"
 	"reflect"
 	"testing"
 )
@@ -109,4 +110,59 @@ func TestParser_Parse(t *testing.T) {
 			}
 		})
 	}
+}
+
+// ensures the parser handles all valid json that encoding/json accepts.
+func FuzzParser(f *testing.F) {
+	f.Add([]byte("null"))
+	f.Add([]byte("true"))
+	f.Add([]byte("false"))
+	f.Add([]byte("0"))
+	f.Add([]byte("1.5"))
+	f.Add([]byte("-42"))
+	f.Add([]byte("1e10"))
+	f.Add([]byte("1.5e-5"))
+	f.Add([]byte(`""`))
+	f.Add([]byte(`"hello"`))
+	f.Add([]byte(`"hello\nworld"`))
+	f.Add([]byte(`"hello\\nworld"`))
+	f.Add([]byte(`"unicode\u0041"`))
+	f.Add([]byte(`[]`))
+	f.Add([]byte(`[1,2,3]`))
+	f.Add([]byte(`{}`))
+	f.Add([]byte(`{"a":1}`))
+	f.Add([]byte(`{"a":1,"b":2}`))
+	f.Add([]byte(`{"nested":{"x":1}}`))
+	f.Add([]byte(`[{"a":1}]`))
+	f.Add([]byte(`[1,[2,[3,[4]]]]`))
+	f.Add([]byte(`{"a":"b","c":{"d":"e"}}`))
+	f.Add([]byte(`[null,true,false]`))
+	f.Add([]byte(`{"unicode":"🔥"}`))
+	f.Add([]byte(`{ "a" : 1 }`))
+	f.Add([]byte("{\n\t\"a\": 1\n}"))
+	f.Add([]byte(`{"a":1/*comment*/,"b":2}`))
+	f.Add([]byte(`{"a":1//comment
+}`))
+
+	f.Fuzz(func(t *testing.T, data []byte) {
+		var any interface{}
+		stdErr := json.Unmarshal(data, &any)
+
+		lexer := NewLexer(data)
+		parser := NewParser(lexer)
+		_, parseErr := parser.Parse()
+
+		// If encoding/json accepts it, our parser should too
+		if stdErr == nil && parseErr != nil {
+			t.Fatalf("encoding/json accepted but our parser rejected: %s\nerror: %v", string(data), parseErr)
+		}
+
+		// If our parser succeeded, transpiler should succeed too
+		if parseErr == nil {
+			_, transpileErr := Transform("Test", string(data), true)
+			if transpileErr != nil {
+				t.Fatalf("parser succeeded but transpiler failed: %s\nerror: %v", string(data), transpileErr)
+			}
+		}
+	})
 }
