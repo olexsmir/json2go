@@ -38,3 +38,17 @@ jobs:
 
       - name: fuzz parser
         run: go test -fuzz=FuzzParser -fuzztime=60s ./
+
+  bench:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: setup go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache-dependency-path: go.mod
+
+      - name: run benchmarks
+        run: go test -bench=. -benchmem -v ./
