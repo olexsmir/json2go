@@ -1,11 +1,15 @@
 json2go
 -------
 
-json2go to go provides a library and cli tool for
-converting json strings to go struct definitions
+json2go provides a library and cli tool for converting json strings to go struct definitions.
 
-    t := json2go. NewTransformer()
-    typedef, err := t.Transform(`{"json": true}`, "TypeName")
+library Usage:
+
+    // with json tags
+    code, err := json2go.Transform("User", `{"name": "Alice"}`, true)
+
+    // without json tags
+    code, err := json2go.Transform("User", `{"name": "Alice"}`, false)
 
 
 cli interface:
@@ -14,3 +18,4 @@ cli interface:
 
     echo '{"id": 1, "name": "Alice"}' | json2go
     json2go '{"id": 1, "name": "Alice"}'
+    json2go --help
