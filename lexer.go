@@ -2,6 +2,7 @@ package json2go
 
 import (
 	"unicode/utf8"
+	"unsafe"
 )
 
 type Lexer struct {
@@ -37,7 +38,7 @@ func (l *Lexer) Next() Token {
 		for l.ch == ' ' || l.ch == '\t' {
 			l.advance()
 		}
-		return Token{INDENT, string(l.input[offset:l.pos])}
+		return Token{INDENT, sliceString(l.input, offset, l.pos)}
 	case l.ch == '/':
 		return l.lexComment()
 	case l.ch == '"':
@@ -67,11 +68,12 @@ func (l *Lexer) Next() Token {
 		for l.isAlpha() {
 			l.advance()
 		}
-		lit := string(l.input[offset:l.pos])
+		lit := sliceString(l.input, offset, l.pos)
 		kind := ILLEGAL
-		if lit == "false" || lit == "true" {
+		switch lit {
+		case "false", "true":
 			kind = BOOL
-		} else if lit == "null" {
+		case "null":
 			kind = NULL
 		}
 		return Token{kind, lit}
@@ -107,7 +109,7 @@ func (l *Lexer) lexString() Token {
 				return Token{ILLEGAL, "invalid escape sequence"}
 			}
 		case '"':
-			lit := string(l.input[offset:l.pos])
+			lit := sliceString(l.input, offset, l.pos)
 			l.advance() // consume closing '"'
 			return Token{STRING, lit}
 		}
@@ -161,7 +163,7 @@ func (l *Lexer) lexNumber() Token {
 		}
 	}
 
-	return Token{kind, string(l.input[offset:l.pos])}
+	return Token{kind, sliceString(l.input, offset, l.pos)}
 }
 
 func (l *Lexer) lexComment() Token {
@@ -175,7 +177,7 @@ func (l *Lexer) lexComment() Token {
 		for l.ch != 0 && l.ch != '\n' && l.ch != '\r' {
 			l.advance()
 		}
-		return Token{COMMENTLINE, string(l.input[offset:l.pos])}
+		return Token{COMMENTLINE, sliceString(l.input, offset, l.pos)}
 	case '*':
 		l.advance()
 		offset := l.pos
@@ -188,7 +190,7 @@ func (l *Lexer) lexComment() Token {
 				if l.ch == '/' {
 					end := l.pos - 1 // exclude the '*'
 					l.advance()
-					return Token{COMMENTBLOCK, string(l.input[offset:end])}
+					return Token{COMMENTBLOCK, sliceString(l.input, offset, end)}
 				}
 			} else {
 				l.advance()
@@ -221,4 +223,11 @@ func (l *Lexer) isAlpha() bool {
 func (l *Lexer) isHex() bool {
 	return (l.ch >= '0' && l.ch <= '9') ||
 		(l.ch >= 'a' && l.ch <= 'f') || (l.ch >= 'A' && l.ch <= 'F')
+}
+
+func sliceString(b []byte, start, end int) string {
+	if start >= end {
+		return ""
+	}
+	return unsafe.String(&b[start], end-start)
 }
