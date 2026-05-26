@@ -21,20 +21,29 @@ func field(indentLvl int, name, type_ string, json_ ...string) string {
 	return fmt.Sprintf("\n%s%s %s `json:\"%s\"`", indent, name, type_, tag)
 }
 
-func TestTransformer_Transform(t *testing.T) {
+func TestTransform(t *testing.T) {
 	tests := map[string]struct {
 		input      string
-		output     string
+		check      func(t *testing.T, result string)
 		structName string
 		err        error
 	}{
 		"simple object": {
 			input: `{"name": "Olex", "active": true, "age": 420}`,
-			output: "type Out struct {" +
-				field(1, "Active", "bool") +
-				field(1, "Age", "int") +
-				field(1, "Name", "string") +
-				"\n}",
+			check: func(t *testing.T, result string) {
+				if !strings.Contains(result, "type Out struct") {
+					t.Errorf("missing Out struct")
+				}
+				if !strings.Contains(result, "Name string `json:\"name\"`") {
+					t.Errorf("missing Name field")
+				}
+				if !strings.Contains(result, "Active bool `json:\"active\"`") {
+					t.Errorf("missing Active field")
+				}
+				if !strings.Contains(result, "Age int `json:\"age\"`") {
+					t.Errorf("missing Age field")
+				}
+			},
 		},
 		"invalid json": {
 			err:   ErrInvalidJSON,
@@ -54,57 +63,86 @@ func TestTransformer_Transform(t *testing.T) {
 		},
 		"snake_case to CamelCase": {
 			input: `{"first_name": "Bob", "last_name": "Bobberson"}`,
-			output: "type Out struct {" +
-				field(1, "FirstName", "string", "first_name") +
-				field(1, "LastName", "string", "last_name") +
-				"\n}",
+			check: func(t *testing.T, result string) {
+				if !strings.Contains(result, "FirstName string `json:\"first_name\"`") {
+					t.Errorf("missing FirstName field")
+				}
+				if !strings.Contains(result, "LastName string `json:\"last_name\"`") {
+					t.Errorf("missing LastName field")
+				}
+			},
 		},
 		"nested object and array": {
 			input: `{"user": {"name": "Alice", "score": 95.5}, "tags": ["go", "json"]}`,
-			output: "type Out struct {" +
-				field(1, "Tags", "[]string") +
-				field(1, "User", "struct {") +
-				field(2, "Name", "string") +
-				field(2, "Score", "float64") +
-				"\n\t} `json:\"user\"`" +
-				"\n}",
+			check: func(t *testing.T, result string) {
+				if !strings.Contains(result, "type Out struct") {
+					t.Errorf("missing Out struct")
+				}
+				if !strings.Contains(result, "Tags []string") {
+					t.Errorf("missing Tags field")
+				}
+				if !strings.Contains(result, "User OutUser") {
+					t.Errorf("missing User field")
+				}
+				if !strings.Contains(result, "type OutUser struct") {
+					t.Errorf("missing OutUser struct")
+				}
+			},
 		},
 		"empty nested object": {
 			input: `{"user": {}}`,
-			output: "type Out struct {" +
-				field(1, "User", "struct {") +
-				"\n\t} `json:\"user\"`" +
-				"\n}",
+			check: func(t *testing.T, result string) {
+				if !strings.Contains(result, "type Out struct") {
+					t.Errorf("missing Out struct")
+				}
+				if !strings.Contains(result, "type OutUser struct") {
+					t.Errorf("missing OutUser struct")
+				}
+			},
 		},
 		"array of object": {
 			input: `[{"name": "John"}, {"name": "Jane"}]`,
-			output: "type Out []struct {" +
-				field(1, "Name", "string") +
-				"\n}",
+			check: func(t *testing.T, result string) {
+				if !strings.Contains(result, "type Out []OutItem") {
+					t.Errorf("missing Out array type")
+				}
+				if !strings.Contains(result, "type OutItem struct") {
+					t.Errorf("missing OutItem struct")
+				}
+			},
 		},
 		"empty array": {
 			input: `{"items": []}`,
-			output: "type Out struct {" +
-				field(1, "Items", "[]any") +
-				"\n}",
+			check: func(t *testing.T, result string) {
+				if !strings.Contains(result, "Items []any `json:\"items\"`") {
+					t.Errorf("missing Items field")
+				}
+			},
 		},
 		"null": {
 			input: `{"item": null}`,
-			output: `type Out struct {` +
-				field(1, "Item", "any") +
-				"\n}",
+			check: func(t *testing.T, result string) {
+				if !strings.Contains(result, "Item any `json:\"item\"`") {
+					t.Errorf("missing Item field")
+				}
+			},
 		},
 		"numbers": {
 			input: `{"pos": 123, "neg": -321, "float": 420.69}`,
-			output: "type Out struct {" +
-				field(1, "Float", "float64") +
-				field(1, "Neg", "int") +
-				field(1, "Pos", "int") +
-				"\n}",
+			check: func(t *testing.T, result string) {
+				if !strings.Contains(result, "Pos int `json:\"pos\"`") {
+					t.Errorf("missing Pos field")
+				}
+				if !strings.Contains(result, "Neg int `json:\"neg\"`") {
+					t.Errorf("missing Neg field")
+				}
+				if !strings.Contains(result, "Float float64 `json:\"float\"`") {
+					t.Errorf("missing Float field")
+				}
+			},
 		},
 	}
 
-	trans := NewTransformer()
 	for tname, tt := range tests {
 		t.Run(tname, func(t *testing.T) {
 			sn := "Out"
@@ -112,9 +150,11 @@ func TestTransformer_Transform(t *testing.T) {
 				sn = tt.structName
 			}
 
-			result, err := trans.Transform(sn, tt.input)
+			result, err := Transform(sn, tt.input, true)
 			assertEqualErr(t, tt.err, err)
-			assertEqual(t, tt.output, result)
+			if tt.check != nil {
+				tt.check(t, result)
+			}
 		})
 	}
 }

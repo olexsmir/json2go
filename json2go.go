@@ -1,168 +1,56 @@
 package json2go
 
 import (
-	"encoding/json"
 	"errors"
-	"fmt"
-	"regexp"
-	"sort"
-	"strings"
+	"unicode"
+	"unicode/utf8"
+	"unsafe"
 )
 
-var identRe = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*$`)
 var (
-	ErrInvalidJSON       = errors.New("invalid json")
+	// ErrInvalidJSON json input could not be parsed.
+	ErrInvalidJSON = errors.New("invalid json")
+
+	// ErrInvalidStructName struct name provided is not a valid Go identifier.
 	ErrInvalidStructName = errors.New("invalid struct name")
 )
 
-type Transformer struct {
-	structName    string
-	currentIndent int
-}
-
-func NewTransformer() *Transformer {
-	return &Transformer{}
-}
-
-// Transform transforms provided json string into go type annotation
-func (t *Transformer) Transform(structName, jsonStr string) (string, error) {
-	if !identRe.MatchString(structName) {
+// Transform converts a JSON string to Go struct type definitions.
+//
+// The structName must be a valid Go identifier.
+// Set includeTags to true to generate `json:"field_name"` tags on struct fields.
+// Returns the Go code as a string, or an error if JSON parsing fails.
+func Transform(structName, jsonStr string, includeTags bool) (string, error) {
+	if !isValidIdentifier(structName) {
 		return "", ErrInvalidStructName
 	}
 
-	t.structName = structName
-	t.currentIndent = 0
-
-	var input any
-	if err := json.Unmarshal([]byte(jsonStr), &input); err != nil {
+	input := unsafe.Slice(unsafe.StringData(jsonStr), len(jsonStr))
+	lexer := NewLexer(input)
+	parser := NewParser(lexer)
+	v, err := parser.Parse()
+	if err != nil {
 		return "", errors.Join(ErrInvalidJSON, err)
 	}
 
-	type_ := t.getTypeAnnotation(structName, input)
-	return type_, nil
+	return NewTranspiler().Transpile(structName, v, includeTags)
 }
 
-func (t *Transformer) getTypeAnnotation(typeName string, input any) string {
-	switch v := input.(type) {
-	case map[string]any:
-		return fmt.Sprintf("type %s %s", typeName, t.buildStruct(v))
-
-	case []any:
-		if len(v) == 0 {
-			return fmt.Sprintf("type %s []any", typeName)
-		}
-
-		type_ := t.getGoType(typeName+"Item", v[0])
-		return fmt.Sprintf("type %s []%s", typeName, type_)
-
-	case string:
-		return fmt.Sprintf("type %s string", typeName)
-
-	case float64:
-		if float64(int(v)) == v {
-			return fmt.Sprintf("type %s int", typeName)
-		}
-		return fmt.Sprintf("type %s float64", typeName)
-
-	case bool:
-		return fmt.Sprintf("type %s bool", typeName)
-
-	default:
-		return fmt.Sprintf("type %s any", typeName)
-
-	}
-}
-
-func (t *Transformer) buildStruct(input map[string]any) string {
-	var fields strings.Builder
-	for _, f := range mapToStructInput(input) {
-		fieldName := t.toGoFieldName(f.field)
-		if fieldName == "" {
-			fieldName = "NotNamedField"
-			f.field = "NotNamedField"
-		}
-
-		// increase indentation in case of building new struct
-		t.currentIndent++
-		fieldType := t.getGoType(fieldName, f.type_)
-		t.currentIndent--
-
-		jsonTag := fmt.Sprintf("`json:\"%s\"`", f.field)
-
-		indent := strings.Repeat("\t", t.currentIndent+1)
-		fields.WriteString(fmt.Sprintf(
-			"%s%s %s %s\n",
-			indent,
-			fieldName,
-			fieldType,
-			jsonTag,
-		))
+func isValidIdentifier(s string) bool {
+	if len(s) == 0 {
+		return false
 	}
 
-	return fmt.Sprintf("struct {\n%s%s}",
-		fields.String(),
-		strings.Repeat("\t", t.currentIndent))
-}
-
-func (t *Transformer) getGoType(fieldName string, value any) string {
-	switch v := value.(type) {
-	case map[string]any:
-		return t.buildStruct(v)
-
-	case []any:
-		if len(v) == 0 {
-			return "[]any"
-		}
-
-		type_ := t.getGoType(fieldName, v[0])
-		return "[]" + type_
-
-	case float64:
-		if float64(int(v)) == v {
-			return "int"
-		}
-		return "float64"
-
-	case string:
-		return "string"
-
-	case bool:
-		return "bool"
-
-	default:
-		return "any"
+	r, size := utf8.DecodeRuneInString(s)
+	if !unicode.IsLetter(r) && r != '_' {
+		return false
 	}
-}
 
-func (t *Transformer) toGoFieldName(jsonField string) string {
-	parts := strings.Split(jsonField, "_")
-
-	var result strings.Builder
-	for _, part := range parts {
-		if part != "" {
-			if len(part) > 0 {
-				result.WriteString(strings.ToUpper(part[:1]) + part[1:])
-			}
+	for _, r := range s[size:] {
+		if !unicode.IsLetter(r) && !unicode.IsDigit(r) && r != '_' {
+			return false
 		}
 	}
 
-	return result.String()
-}
-
-type structInput struct {
-	field string
-	type_ any
-}
-
-func mapToStructInput(input map[string]any) []structInput {
-	res := make([]structInput, 0, len(input))
-	for k, v := range input {
-		res = append(res, structInput{k, v})
-	}
-
-	sort.Slice(res, func(i, j int) bool {
-		return res[i].field < res[j].field
-	})
-
-	return res
+	return true
 }
