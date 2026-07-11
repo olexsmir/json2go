@@ -2,24 +2,9 @@ package json2go
 
 import (
 	"errors"
-	"fmt"
-	"reflect"
 	"strings"
 	"testing"
 )
-
-func field(indentLvl int, name, type_ string, json_ ...string) string {
-	indent := strings.Repeat("\t", indentLvl)
-	if strings.Contains(type_, "struct") {
-		return fmt.Sprintf("\n%s%s %s", indent, name, type_)
-	}
-
-	tag := strings.ToLower(name)
-	if len(json_) == 1 {
-		tag = json_[0]
-	}
-	return fmt.Sprintf("\n%s%s %s `json:\"%s\"`", indent, name, type_, tag)
-}
 
 func TestTransform(t *testing.T) {
 	tests := map[string]struct {
@@ -172,12 +157,5 @@ func assertEqualErr(t *testing.T, expected, actual error) {
 
 	if !errors.Is(actual, expected) {
 		t.Errorf("expected error: %v, got: %v", expected, actual)
-	}
-}
-
-func assertEqual[T any](t *testing.T, expected, actual T) {
-	t.Helper()
-	if !reflect.DeepEqual(expected, actual) {
-		t.Errorf("expected: %v, got: %v\n", expected, actual)
 	}
 }
