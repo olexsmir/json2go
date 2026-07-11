@@ -81,11 +81,11 @@ func TestTransform(t *testing.T) {
 				if !strings.Contains(result, "Tags []string") {
 					t.Errorf("missing Tags field")
 				}
-				if !strings.Contains(result, "User OutUser") {
-					t.Errorf("missing User field")
+				if !strings.Contains(result, "User struct {") {
+					t.Errorf("missing inline User struct")
 				}
-				if !strings.Contains(result, "type OutUser struct") {
-					t.Errorf("missing OutUser struct")
+				if !strings.Contains(result, "Name string `json:\"name\"`") {
+					t.Errorf("missing Name field in inline struct")
 				}
 			},
 		},
@@ -95,19 +95,19 @@ func TestTransform(t *testing.T) {
 				if !strings.Contains(result, "type Out struct") {
 					t.Errorf("missing Out struct")
 				}
-				if !strings.Contains(result, "type OutUser struct") {
-					t.Errorf("missing OutUser struct")
+				if !strings.Contains(result, "User struct {") {
+					t.Errorf("missing inline User struct")
 				}
 			},
 		},
 		"array of object": {
 			input: `[{"name": "John"}, {"name": "Jane"}]`,
 			check: func(t *testing.T, result string) {
-				if !strings.Contains(result, "type Out []OutItem") {
-					t.Errorf("missing Out array type")
+				if !strings.Contains(result, "type Out []struct {") {
+					t.Errorf("missing Out array type with inline struct, got: %s", result)
 				}
-				if !strings.Contains(result, "type OutItem struct") {
-					t.Errorf("missing OutItem struct")
+				if !strings.Contains(result, "Name string `json:\"name\"`") {
+					t.Errorf("missing Name field")
 				}
 			},
 		},

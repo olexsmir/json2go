@@ -51,11 +51,14 @@ func TestTranspiler_Transpile_WithTags(t *testing.T) {
 				if !strings.Contains(result, "type Response struct") {
 					t.Errorf("missing Response struct")
 				}
-				if !strings.Contains(result, "type ResponseUser struct") {
-					t.Errorf("missing ResponseUser struct")
+				if !strings.Contains(result, "Name string `json:\"name\"`") {
+					t.Errorf("missing Name field")
 				}
-				if !strings.Contains(result, "User ResponseUser `json:\"user\"`") {
-					t.Errorf("missing User field")
+				if !strings.Contains(result, "Active bool `json:\"active\"`") {
+					t.Errorf("missing Active field")
+				}
+				if !strings.Contains(result, "User struct {") {
+					t.Errorf("missing inline User struct")
 				}
 			},
 		},
@@ -84,8 +87,8 @@ func TestTranspiler_Transpile_WithTags(t *testing.T) {
 				}},
 			},
 			check: func(t *testing.T, result string) {
-				if !strings.Contains(result, "type UsersItem struct") {
-					t.Errorf("missing UsersItem struct in: %s", result)
+				if !strings.Contains(result, "type Users []struct {") {
+					t.Errorf("missing Users array type with inline struct, got: %s", result)
 				}
 				if !strings.Contains(result, "Id int `json:\"id\"`") {
 					t.Errorf("missing Id field")
@@ -171,8 +174,14 @@ func TestTranspiler_Transpile_WithoutTags(t *testing.T) {
 				if !strings.Contains(result, "type Response struct") {
 					t.Errorf("missing Response struct")
 				}
-				if !strings.Contains(result, "type ResponseUser struct") {
-					t.Errorf("missing ResponseUser struct")
+				if !strings.Contains(result, "User struct {") {
+					t.Errorf("missing inline User struct")
+				}
+				if !strings.Contains(result, "Name string\n") {
+					t.Errorf("missing Name field")
+				}
+				if !strings.Contains(result, "Active bool\n") {
+					t.Errorf("missing Active field")
 				}
 				if strings.Contains(result, "`json:") {
 					t.Errorf("should not have json tags")

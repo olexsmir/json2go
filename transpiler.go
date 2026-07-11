@@ -11,111 +11,82 @@ type Transpiler struct{}
 func NewTranspiler() *Transpiler { return &Transpiler{} }
 
 // Transpile converts a [Value] AST to Go type definitions.
-// Nested types are emitted after the parent struct.
 func (t *Transpiler) Transpile(structName string, v Value, includeTags bool) (string, error) {
 	var buf strings.Builder
-	var nested strings.Builder
+	buf.WriteString("type ")
+	buf.WriteString(structName)
 
 	switch v.Kind {
 	case ArrayValue:
+		buf.WriteString(" [")
 		if len(v.Array) == 0 {
-			buf.WriteString("type ")
-			buf.WriteString(structName)
-			buf.WriteString(" []any")
+			buf.WriteString("]any")
 		} else {
-			itemType := t.writeWithNested(&buf, &nested, structName+"Item", v.Array[0], includeTags)
-			buf.WriteString("type ")
-			buf.WriteString(structName)
-			buf.WriteString(" []")
-			buf.WriteString(itemType)
+			buf.WriteByte(']')
+			t.writeInlineType(&buf, structName+"Item", v.Array[0], includeTags)
 		}
 
 	case ObjectValue:
-		t.writeStructDef(&buf, &nested, structName, v.Object, includeTags)
+		buf.WriteByte(' ')
+		t.writeInlineStruct(&buf, structName, v.Object, includeTags)
 
 	default:
-		scalarType := t.inferType(structName, v)
-		buf.WriteString("type ")
-		buf.WriteString(structName)
 		buf.WriteByte(' ')
-		buf.WriteString(scalarType)
+		t.writeScalarType(&buf, v)
 	}
 
-	if nested.Len() > 0 && buf.Len() > 0 {
-		buf.WriteString("\n\n")
-		buf.WriteString(nested.String())
-	}
 	return buf.String(), nil
 }
 
-func (t *Transpiler) writeWithNested(buf, nested *strings.Builder, name string, v Value, includeTags bool) string {
+func (t *Transpiler) writeInlineType(buf *strings.Builder, name string, v Value, includeTags bool) {
 	switch v.Kind {
 	case ObjectValue:
-		t.writeStructDef(nested, nested, name, v.Object, includeTags)
-		return name
+		t.writeInlineStruct(buf, name, v.Object, includeTags)
 
 	case ArrayValue:
+		buf.WriteByte('[')
 		if len(v.Array) == 0 {
-			return "[]any"
+			buf.WriteString("]any")
+		} else {
+			buf.WriteByte(']')
+			t.writeInlineType(buf, name+"Item", v.Array[0], includeTags)
 		}
-		itemType := t.writeWithNested(buf, nested, name+"Item", v.Array[0], includeTags)
-		return "[]" + itemType
+
+	default:
+		t.writeScalarType(buf, v)
 	}
-	return t.inferType(name, v)
 }
 
-func (t *Transpiler) writeStructDef(buf, nested *strings.Builder, name string, fields []Field, includeTags bool) {
-	if buf.Len() > 0 {
-		buf.WriteString("\n\n")
-	}
-
-	buf.WriteString("type ")
-	buf.WriteString(name)
-	buf.WriteString(" struct {\n")
+func (t *Transpiler) writeInlineStruct(buf *strings.Builder, name string, fields []Field, includeTags bool) {
+	buf.WriteString("struct {\n")
 	for _, f := range fields {
 		fieldName := t.sanitizeFieldName(f.K)
-		fieldType := t.writeWithNested(buf, nested, name+fieldName, f.V, includeTags)
+		buf.WriteByte('\t')
+		buf.WriteString(fieldName)
+		buf.WriteByte(' ')
+		t.writeInlineType(buf, name+fieldName, f.V, includeTags)
 		if includeTags {
-			buf.WriteByte('\t')
-			buf.WriteString(fieldName)
-			buf.WriteByte(' ')
-			buf.WriteString(fieldType)
 			buf.WriteString(" `json:\"")
 			buf.WriteString(f.K)
-			buf.WriteString("\"`\n")
-		} else {
-			buf.WriteByte('\t')
-			buf.WriteString(fieldName)
-			buf.WriteByte(' ')
-			buf.WriteString(fieldType)
-			buf.WriteByte('\n')
+			buf.WriteString("\"`")
 		}
+		buf.WriteByte('\n')
 	}
-	buf.WriteString("}")
+	buf.WriteByte('}')
 }
 
-func (t *Transpiler) inferType(name string, v Value) string {
+func (t *Transpiler) writeScalarType(buf *strings.Builder, v Value) {
 	switch v.Kind {
-	case ObjectValue:
-		return name
-	case ArrayValue:
-		if len(v.Array) == 0 {
-			return "[]any"
-		}
-		itemType := t.inferType(name+"Item", v.Array[0])
-		return "[]" + itemType
 	case StringValue:
-		return "string"
+		buf.WriteString("string")
 	case NumberValue:
-		return "int"
+		buf.WriteString("int")
 	case DecimalValue:
-		return "float64"
+		buf.WriteString("float64")
 	case BoolValue:
-		return "bool"
-	case NullValue:
-		return "any"
+		buf.WriteString("bool")
 	default:
-		return "any"
+		buf.WriteString("any")
 	}
 }
 
