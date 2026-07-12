@@ -23,12 +23,12 @@ func (t *Transpiler) Transpile(structName string, v Value, includeTags bool) (st
 			buf.WriteString("]any")
 		} else {
 			buf.WriteByte(']')
-			t.writeInlineType(&buf, structName+"Item", v.Array[0], includeTags)
+			t.writeInlineType(&buf, structName+"Item", v.Array[0], includeTags, 0)
 		}
 
 	case ObjectValue:
 		buf.WriteByte(' ')
-		t.writeInlineStruct(&buf, structName, v.Object, includeTags)
+		t.writeInlineStruct(&buf, structName, v.Object, includeTags, 0)
 
 	default:
 		buf.WriteByte(' ')
@@ -38,10 +38,10 @@ func (t *Transpiler) Transpile(structName string, v Value, includeTags bool) (st
 	return buf.String(), nil
 }
 
-func (t *Transpiler) writeInlineType(buf *strings.Builder, name string, v Value, includeTags bool) {
+func (t *Transpiler) writeInlineType(buf *strings.Builder, name string, v Value, includeTags bool, depth int) {
 	switch v.Kind {
 	case ObjectValue:
-		t.writeInlineStruct(buf, name, v.Object, includeTags)
+		t.writeInlineStruct(buf, name, v.Object, includeTags, depth)
 
 	case ArrayValue:
 		buf.WriteByte('[')
@@ -49,7 +49,7 @@ func (t *Transpiler) writeInlineType(buf *strings.Builder, name string, v Value,
 			buf.WriteString("]any")
 		} else {
 			buf.WriteByte(']')
-			t.writeInlineType(buf, name+"Item", v.Array[0], includeTags)
+			t.writeInlineType(buf, name+"Item", v.Array[0], includeTags, depth)
 		}
 
 	default:
@@ -57,14 +57,20 @@ func (t *Transpiler) writeInlineType(buf *strings.Builder, name string, v Value,
 	}
 }
 
-func (t *Transpiler) writeInlineStruct(buf *strings.Builder, name string, fields []Field, includeTags bool) {
+func (t *Transpiler) writeIndent(buf *strings.Builder, depth int) {
+	for i := 0; i < depth; i++ {
+		buf.WriteByte('\t')
+	}
+}
+
+func (t *Transpiler) writeInlineStruct(buf *strings.Builder, name string, fields []Field, includeTags bool, depth int) {
 	buf.WriteString("struct {\n")
 	for _, f := range fields {
 		fieldName := t.sanitizeFieldName(f.K)
-		buf.WriteByte('\t')
+		t.writeIndent(buf, depth+1)
 		buf.WriteString(fieldName)
 		buf.WriteByte(' ')
-		t.writeInlineType(buf, name+fieldName, f.V, includeTags)
+		t.writeInlineType(buf, name+fieldName, f.V, includeTags, depth+1)
 		if includeTags {
 			buf.WriteString(" `json:\"")
 			buf.WriteString(f.K)
@@ -72,6 +78,7 @@ func (t *Transpiler) writeInlineStruct(buf *strings.Builder, name string, fields
 		}
 		buf.WriteByte('\n')
 	}
+	t.writeIndent(buf, depth)
 	buf.WriteByte('}')
 }
 
