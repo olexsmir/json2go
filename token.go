@@ -7,7 +7,7 @@ type Token struct {
 	Literal string
 }
 
-//go:generate go tool stringer -output token_type_string.go -type=TokenType
+//go:generate go run golang.org/x/tools/cmd/stringer@latest -type=TokenType -output token_type_string.go
 const (
 	EOF TokenType = iota
 	ILLEGAL
